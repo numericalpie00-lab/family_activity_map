@@ -19,6 +19,7 @@ const CATEGORIES = {
   camping: "#a9714b",
   farm: "#d1495b",
   themepark: "#c93a86",
+  mall: "#4b4bb5",
 };
 
 const SIZE = 36;

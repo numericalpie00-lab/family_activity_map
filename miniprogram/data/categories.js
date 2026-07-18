@@ -12,4 +12,5 @@ module.exports = [
   { id: "camping", label: "露营", emoji: "⛺", color: "#a9714b" },
   { id: "farm", label: "采摘农场", emoji: "🍓", color: "#d1495b" },
   { id: "themepark", label: "主题乐园", emoji: "🎢", color: "#c93a86" },
+  { id: "mall", label: "商场亲子", emoji: "🛍", color: "#4b4bb5" },
 ];

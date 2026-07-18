@@ -13,6 +13,7 @@ const CATEGORIES = {
   camping:    { label: "露营",       emoji: "⛺", color: "#a9714b" },
   farm:       { label: "采摘农场",   emoji: "🍓", color: "#d1495b" },
   themepark:  { label: "主题乐园",   emoji: "🎢", color: "#c93a86" },
+  mall:       { label: "商场亲子",   emoji: "🛍", color: "#4b4bb5" },
 };
 
 const CITIES = ["深圳", "广州", "香港", "澳门", "珠海", "佛山", "东莞", "中山", "惠州", "江门", "肇庆"];
