@@ -1,0 +1,100 @@
+<view class="page">
+  <!-- 顶部搜索 -->
+  <view class="topbar">
+    <view class="brand">🧭</view>
+    <input class="search" placeholder="搜索地点、城市、关键词…" value="{{keyword}}"
+           bindinput="onSearch" confirm-type="search" />
+  </view>
+  <view class="sr-box" wx:if="{{searchHits.length}}">
+    <view class="sr-item" wx:for="{{searchHits}}" wx:key="_id"
+          data-id="{{item._id}}" bindtap="onPickSearch">
+      <text>{{item.emoji}} {{item.n}}</text>
+      <text class="sr-city">{{item.city}}</text>
+    </view>
+  </view>
+
+  <!-- 地图 -->
+  <map id="map" class="map"
+       latitude="{{lat}}" longitude="{{lng}}" scale="{{scale}}"
+       markers="{{markers}}"
+       bindmarkertap="onMarkerTap" bindtap="onMapTap"
+       show-location="{{true}}" enable-rotate="{{false}}"></map>
+
+  <!-- 底部分类栏 -->
+  <scroll-view class="cat-bar" scroll-x enable-flex>
+    <view class="cat-chip {{selectedCats.indexOf(item.id) > -1 ? 'on' : ''}}"
+          wx:for="{{cats}}" wx:key="id"
+          data-id="{{item.id}}" bindtap="onToggleCat"
+          style="{{selectedCats.indexOf(item.id) > -1 ? 'background:' + item.color + ';border-color:' + item.color : 'border-color:' + item.color}}">
+      {{item.emoji}} {{item.label}}
+    </view>
+  </scroll-view>
+
+  <!-- 浮动按钮 -->
+  <view class="fabs">
+    <view class="fab" bindtap="onFilter">⚲</view>
+    <view class="fab" bindtap="onList">☰</view>
+    <view class="fab main" bindtap="onLocate">🎯</view>
+  </view>
+
+  <!-- 筛选面板 -->
+  <view class="mask" wx:if="{{showFilter || showList}}" bindtap="closePanels"></view>
+  <view class="panel" wx:if="{{showFilter}}">
+    <view class="panel-title">
+      <text>筛选</text>
+      <text class="reset" bindtap="onReset">清除全部</text>
+    </view>
+    <view class="sec">城市</view>
+    <view class="chips">
+      <view class="chip {{selectedCity === '' ? 'on' : ''}}" data-city="" bindtap="onCity">全部</view>
+      <view class="chip {{selectedCity === item ? 'on' : ''}}" wx:for="{{cities}}" wx:key="*this"
+            data-city="{{item}}" bindtap="onCity">{{item}}</view>
+    </view>
+    <view class="sec">条件</view>
+    <view class="chips">
+      <view class="chip {{onlyFree ? 'on' : ''}}" bindtap="onFree">🆓 免费</view>
+      <view class="chip {{io === 'indoor' ? 'on' : ''}}" data-io="indoor" bindtap="onIo">🏠 室内(雨天)</view>
+      <view class="chip {{io === 'outdoor' ? 'on' : ''}}" data-io="outdoor" bindtap="onIo">🌤 户外</view>
+    </view>
+    <view class="count">共找到 {{shownCount}} 个地点</view>
+  </view>
+
+  <!-- 列表面板 -->
+  <view class="panel list-panel" wx:if="{{showList}}">
+    <view class="panel-title">
+      <text>{{listTitle}}（{{listItems.length}}）</text>
+    </view>
+    <scroll-view scroll-y class="list-scroll">
+      <view class="li" wx:for="{{listItems}}" wx:key="_id"
+            data-id="{{item._id}}" bindtap="onPickItem">
+        <view class="li-top">
+          <text>{{item.emoji}}</text>
+          <text class="li-name">{{item.n}}</text>
+          <text class="li-city">{{item.city}}</text>
+        </view>
+        <view class="li-desc">{{item.d}}</view>
+        <view class="li-dist" wx:if="{{item.distText}}">{{item.distText}}</view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- 详情卡片 -->
+  <view class="detail" wx:if="{{sel}}">
+    <view class="dc-head">
+      <view class="dc-cat" style="background:{{sel.color}}">{{sel.emoji}} {{sel.catLabel}}</view>
+      <view class="dc-close" bindtap="closeDetail">×</view>
+    </view>
+    <view class="dc-name">{{sel.n}}</view>
+    <view class="dc-desc">{{sel.d}}</view>
+    <view class="dc-tags">
+      <text class="tag">👶 {{sel.age}}岁</text>
+      <text class="tag">{{sel.free ? '🆓 免费' : '💰 收费'}}</text>
+      <text class="tag">{{sel.ioLabel}}</text>
+      <text class="tag warn" wx:if="{{sel.season}}">🗓 {{sel.season}}</text>
+      <text class="tag" wx:for="{{sel.tags}}" wx:key="*this">{{item}}</text>
+    </view>
+    <view class="dc-addr">📍 {{sel.city}} · {{sel.addr}}</view>
+    <button class="dc-nav" bindtap="onNav">🧭 导航前往</button>
+    <view class="dc-note">坐标为近似位置，出行请以实际导航为准</view>
+  </view>
+</view>

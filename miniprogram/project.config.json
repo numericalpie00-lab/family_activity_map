@@ -1,0 +1,12 @@
+{
+  "appid": "touristappid",
+  "compileType": "miniprogram",
+  "projectname": "wanqu-map",
+  "libVersion": "3.4.0",
+  "setting": {
+    "es6": true,
+    "postcss": true,
+    "minified": true,
+    "ignoreUploadUnusedFiles": true
+  }
+}

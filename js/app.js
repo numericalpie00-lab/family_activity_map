@@ -26,15 +26,69 @@ const state = {
   userPos: null,
 };
 
+// ---------- 坐标转换 (WGS-84 -> GCJ-02，港澳无偏移不转换) ----------
+const GCJ = (() => {
+  const PI = Math.PI, A = 6378245.0, EE = 0.00669342162296594323;
+  function tLat(x, y) {
+    let r = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+    r += ((20.0 * Math.sin(6.0 * x * PI) + 20.0 * Math.sin(2.0 * x * PI)) * 2.0) / 3.0;
+    r += ((20.0 * Math.sin(y * PI) + 40.0 * Math.sin((y / 3.0) * PI)) * 2.0) / 3.0;
+    r += ((160.0 * Math.sin((y / 12.0) * PI) + 320 * Math.sin((y * PI) / 30.0)) * 2.0) / 3.0;
+    return r;
+  }
+  function tLng(x, y) {
+    let r = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+    r += ((20.0 * Math.sin(6.0 * x * PI) + 20.0 * Math.sin(2.0 * x * PI)) * 2.0) / 3.0;
+    r += ((20.0 * Math.sin(x * PI) + 40.0 * Math.sin((x / 3.0) * PI)) * 2.0) / 3.0;
+    r += ((150.0 * Math.sin((x / 12.0) * PI) + 300.0 * Math.sin((x / 30.0) * PI)) * 2.0) / 3.0;
+    return r;
+  }
+  return function wgs2gcj(lat, lng) {
+    const dLat0 = tLat(lng - 105.0, lat - 35.0);
+    const dLng0 = tLng(lng - 105.0, lat - 35.0);
+    const radLat = (lat / 180.0) * PI;
+    let magic = Math.sin(radLat);
+    magic = 1 - EE * magic * magic;
+    const sq = Math.sqrt(magic);
+    const dLat = (dLat0 * 180.0) / (((A * (1 - EE)) / (magic * sq)) * PI);
+    const dLng = (dLng0 * 180.0) / ((A / sq) * Math.cos(radLat) * PI);
+    return [lat + dLat, lng + dLng];
+  };
+})();
+
+const NO_OFFSET_CITIES = new Set(["香港", "澳门"]);
+function toGcj(a) {
+  return NO_OFFSET_CITIES.has(a.city) ? [a.lat, a.lng] : GCJ(a.lat, a.lng);
+}
+
 // ---------- 地图初始化 ----------
 const map = L.map("map", { zoomControl: false }).setView([22.75, 113.7], 9);
 L.control.zoom({ position: "topright" }).addTo(map);
 
-L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-  maxZoom: 19,
-  subdomains: "abcd",
-}).addTo(map);
+// 底图：配置了天地图 key 用天地图（WGS-84）；默认用高德中文瓦片（GCJ-02，免 key、内地加载快）。
+// DISPLAY_GCJ 表示底图为 GCJ-02 坐标系，此时标记点显示坐标需同步转换以免偏移。
+const tdtKey = (typeof MAP_CONFIG !== "undefined" && MAP_CONFIG.tiandituKey) || "";
+const DISPLAY_GCJ = !tdtKey;
+if (tdtKey) {
+  const tdtOpts = {
+    subdomains: "01234567",
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.tianditu.gov.cn/">天地图</a> GS(2024)0568号',
+  };
+  L.tileLayer(`https://t{s}.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=${tdtKey}`, tdtOpts).addTo(map);
+  L.tileLayer(`https://t{s}.tianditu.gov.cn/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=${tdtKey}`, tdtOpts).addTo(map);
+} else {
+  L.tileLayer("https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}", {
+    subdomains: "1234",
+    maxZoom: 18,
+    attribution: '&copy; 高德地图',
+  }).addTo(map);
+}
+
+// 每个地点的显示坐标（随底图坐标系而定）
+ACTIVITIES.forEach((a) => {
+  [a._dlat, a._dlng] = DISPLAY_GCJ ? toGcj(a) : [a.lat, a.lng];
+});
 
 const cluster = L.markerClusterGroup({
   showCoverageOnHover: false,
@@ -86,7 +140,7 @@ function renderMarkers() {
   markerById = {};
   const shown = ACTIVITIES.filter(matchesFilter);
   shown.forEach((a) => {
-    const m = L.marker([a.lat, a.lng], { icon: makeIcon(a.c) });
+    const m = L.marker([a._dlat, a._dlng], { icon: makeIcon(a.c) });
     m.on("click", () => showDetail(a));
     markerById[a._id] = m;
     cluster.addLayer(m);
@@ -103,6 +157,12 @@ const detailCard = document.getElementById("detail-card");
 function showDetail(a) {
   const conf = CATEGORIES[a.c];
   const q = encodeURIComponent(`${a.city} ${a.n}`);
+  const name = encodeURIComponent(a.n);
+  const addr = encodeURIComponent(`${a.city} · ${a.addr}`);
+  // 高德标点接口要求 GCJ-02 坐标；百度接口用 coord_type=wgs84 声明原始坐标由其自行转换
+  const [glat, glng] = toGcj(a);
+  const amapUrl = `https://uri.amap.com/marker?position=${glng.toFixed(6)},${glat.toFixed(6)}&name=${name}&src=wanqumap&coordinate=gaode&callnative=0`;
+  const baiduUrl = `https://api.map.baidu.com/marker?location=${a.lat},${a.lng}&title=${name}&content=${addr}&output=html&coord_type=wgs84&src=web.wanqumap.gba`;
   const tags = (a.tags || []).map((t) => `<span class="dc-tag">${t}</span>`).join("");
   const seasonTag = a.season ? `<span class="dc-tag warn">🗓 ${a.season}</span>` : "";
   detailCard.innerHTML = `
@@ -118,8 +178,8 @@ function showDetail(a) {
     </div>
     <p class="dc-meta">📍 ${a.city} · ${a.addr}</p>
     <div class="dc-nav">
-      <a href="https://uri.amap.com/search?keyword=${q}" target="_blank" rel="noopener">高德地图</a>
-      <a href="https://map.baidu.com/search/${q}" target="_blank" rel="noopener">百度地图</a>
+      <a href="${amapUrl}" target="_blank" rel="noopener">高德地图</a>
+      <a href="${baiduUrl}" target="_blank" rel="noopener">百度地图</a>
       <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Google</a>
     </div>`;
   detailCard.classList.remove("hidden");
@@ -210,7 +270,7 @@ function buildFilterUI() {
 function zoomToFiltered() {
   const shown = ACTIVITIES.filter(matchesFilter);
   if (!shown.length) return;
-  const bounds = L.latLngBounds(shown.map((a) => [a.lat, a.lng]));
+  const bounds = L.latLngBounds(shown.map((a) => [a._dlat, a._dlng]));
   map.fitBounds(bounds.pad(0.15));
 }
 
@@ -240,7 +300,7 @@ searchInput.addEventListener("input", () => {
     el.onclick = () => {
       const a = ACTIVITIES[+el.dataset.id];
       searchResults.classList.add("hidden");
-      map.setView([a.lat, a.lng], 14);
+      map.setView([a._dlat, a._dlng], 14);
       showDetail(a);
     };
   });
@@ -262,12 +322,20 @@ document.getElementById("btn-locate").onclick = () => {
   if (!navigator.geolocation) { alert("当前浏览器不支持定位"); return; }
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      state.userPos = [pos.coords.latitude, pos.coords.longitude];
+      state.userPos = [pos.coords.latitude, pos.coords.longitude]; // WGS-84，用于算距离
+      // 底图为 GCJ-02 时显示位置需转换（港澳范围内无偏移）
+      const inHkMo =
+        pos.coords.longitude > 113.5 && pos.coords.longitude < 114.45 &&
+        pos.coords.latitude > 22.06 && pos.coords.latitude < 22.57 &&
+        !(pos.coords.longitude < 113.75 && pos.coords.latitude > 22.24);
+      const dispPos = DISPLAY_GCJ && !inHkMo
+        ? GCJ(pos.coords.latitude, pos.coords.longitude)
+        : state.userPos;
       if (userMarker) map.removeLayer(userMarker);
-      userMarker = L.circleMarker(state.userPos, {
+      userMarker = L.circleMarker(dispPos, {
         radius: 9, color: "#fff", weight: 3, fillColor: "#2563eb", fillOpacity: 1,
       }).addTo(map).bindTooltip("我的位置");
-      map.setView(state.userPos, 12);
+      map.setView(dispPos, 12);
       openList("📍 离我最近");
     },
     () => alert("定位失败，请允许浏览器获取位置权限。\n提示：部分浏览器要求 HTTPS 才能定位。"),
@@ -304,7 +372,7 @@ function renderList() {
   document.querySelectorAll(".list-item").forEach((el) => {
     el.onclick = () => {
       const a = ACTIVITIES[+el.dataset.id];
-      map.setView([a.lat, a.lng], 14);
+      map.setView([a._dlat, a._dlng], 14);
       showDetail(a);
       if (window.innerWidth <= 768) listPanel.classList.add("hidden");
     };

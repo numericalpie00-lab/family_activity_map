@@ -1,0 +1,17 @@
+{
+  "pages": ["pages/index/index"],
+  "window": {
+    "navigationBarTitleText": "湾趣地图",
+    "navigationBarBackgroundColor": "#0b4f4a",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f7f5f0"
+  },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "用于查找你附近的亲子活动地点"
+    }
+  },
+  "requiredPrivateInfos": ["getLocation"],
+  "sitemapLocation": "sitemap.json",
+  "style": "v2"
+}
