@@ -167,7 +167,12 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---------- 地图 ---------- */
 .map-wrap { flex: 1; position: relative; }
-#map { width: 100%; height: 100%; background: #dcebe8; }
+#map { width: 100%; height: 100%; background: #eceae5; }
+
+/* 底图降饱和：橙色道路退为浅灰，地名保持清晰，让彩色地点图标成为视觉主角 */
+.basemap-muted {
+  filter: saturate(0.06) brightness(1.09) contrast(0.9);
+}
 
 .float-btn {
   position: absolute;

@@ -76,13 +76,15 @@ if (tdtKey) {
     maxZoom: 18,
     attribution: '&copy; <a href="https://www.tianditu.gov.cn/">天地图</a> GS(2024)0568号',
   };
-  L.tileLayer(`https://t{s}.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=${tdtKey}`, tdtOpts).addTo(map);
+  L.tileLayer(`https://t{s}.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=${tdtKey}`, { ...tdtOpts, className: "basemap-muted" }).addTo(map);
   L.tileLayer(`https://t{s}.tianditu.gov.cn/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=${tdtKey}`, tdtOpts).addTo(map);
 } else {
+  // className basemap-muted: CSS 滤镜降低底图饱和度，橙色道路退为浅灰，突出地点图标
   L.tileLayer("https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}", {
     subdomains: "1234",
     maxZoom: 18,
     attribution: '&copy; 高德地图',
+    className: "basemap-muted",
   }).addTo(map);
 }
 
