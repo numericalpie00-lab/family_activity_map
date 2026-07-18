@@ -19,12 +19,20 @@ const MAP_CONFIG = {
   basemap: "clean",
 
   /**
-   * 百度统计站点 ID（用于统计每日独立访客 UV / 访问量）：
-   * 1. 前往 https://tongji.baidu.com 用百度账号登录
-   * 2. 「管理 → 网站列表 → 新增网站」，域名填 numericalpie00-lab.github.io
-   * 3. 在「获取代码」页面的脚本里，hm.js? 后面那串就是站点 ID，形如
-   *    a1b2c3d4e5f6...，把它填到下面引号中即可
-   * 留空时不加载任何统计脚本（不影响网站运行）。
+   * 访问统计（每日独立访客 UV / 访问量）。填任意一个即可，GoatCounter 优先。
+   *
+   * —— GoatCounter（推荐，最省事，需能访问外网看后台）——
+   * 1. 打开 https://www.goatcounter.com/signup
+   * 2. 「Code」填一个你喜欢的名字（比如 wanqu），邮箱密码注册
+   * 3. 把这个名字填到下面 goatcounterCode 里就行
+   * 之后在 https://<你的名字>.goatcounter.com 看数据，Visits 就是每日独立访客。
+   */
+  goatcounterCode: "",
+
+  /**
+   * —— 百度统计（备选，内地无需外网即可看后台）——
+   * https://tongji.baidu.com 登录 →「管理→新增网站」→「获取代码」，
+   * 脚本里 hm.js? 后面那串就是 ID，填到下面。
    */
   baiduAnalyticsId: "",
 };
