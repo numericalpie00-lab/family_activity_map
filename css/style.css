@@ -169,9 +169,27 @@ button { font-family: inherit; cursor: pointer; }
 .map-wrap { flex: 1; position: relative; }
 #map { width: 100%; height: 100%; background: #eceae5; }
 
-/* 底图降饱和：橙色道路退为浅灰，地名保持清晰，让彩色地点图标成为视觉主角 */
+/* 底图降饱和（amap 模式）：橙色道路退为浅灰，突出地点图标 */
 .basemap-muted {
   filter: saturate(0.06) brightness(1.09) contrast(0.9);
+}
+
+/* 自研中文地名标注（clean 模式） */
+.place-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #8a959c;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  text-shadow: 0 1px 3px #fff, 0 -1px 3px #fff, 1px 0 3px #fff, -1px 0 3px #fff;
+  pointer-events: none;
+  letter-spacing: 1px;
+}
+.place-label.city {
+  font-size: 14px;
+  font-weight: 700;
+  color: #66727a;
+  letter-spacing: 3px;
 }
 
 .float-btn {

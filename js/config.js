@@ -10,4 +10,11 @@
  */
 const MAP_CONFIG = {
   tiandituKey: "",
+
+  /**
+   * 底图风格：
+   *  "clean"  极简浅灰（CARTO Positron 无标注 + 自研中文地名层），道路极淡（默认）
+   *  "amap"   高德中文瓦片 + 降饱和滤镜，内地加载更快但道路较明显
+   */
+  basemap: "clean",
 };

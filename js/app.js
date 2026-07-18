@@ -66,26 +66,69 @@ function toGcj(a) {
 const map = L.map("map", { zoomControl: false }).setView([22.75, 113.7], 9);
 L.control.zoom({ position: "topright" }).addTo(map);
 
-// 底图：配置了天地图 key 用天地图（WGS-84）；默认用高德中文瓦片（GCJ-02，免 key、内地加载快）。
-// DISPLAY_GCJ 表示底图为 GCJ-02 坐标系，此时标记点显示坐标需同步转换以免偏移。
+// 底图三种模式：
+//  clean（默认）  CARTO Positron 无标注极简底图（WGS-84），道路极淡，配自研中文地名标注层
+//  amap           高德中文瓦片 + 降饱和滤镜（GCJ-02，内地加载快但道路较明显）
+//  tianditu       配置了 tiandituKey 时自动启用（WGS-84，官方中文）
+// DISPLAY_GCJ 表示底图为 GCJ-02 坐标系，标记点显示坐标需同步转换以免偏移。
 const tdtKey = (typeof MAP_CONFIG !== "undefined" && MAP_CONFIG.tiandituKey) || "";
-const DISPLAY_GCJ = !tdtKey;
-if (tdtKey) {
+const BASEMAP = tdtKey ? "tianditu" : ((typeof MAP_CONFIG !== "undefined" && MAP_CONFIG.basemap) || "clean");
+const DISPLAY_GCJ = BASEMAP === "amap";
+
+if (BASEMAP === "tianditu") {
   const tdtOpts = {
     subdomains: "01234567",
     maxZoom: 18,
     attribution: '&copy; <a href="https://www.tianditu.gov.cn/">天地图</a> GS(2024)0568号',
   };
-  L.tileLayer(`https://t{s}.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=${tdtKey}`, { ...tdtOpts, className: "basemap-muted" }).addTo(map);
+  L.tileLayer(`https://t{s}.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=${tdtKey}`, tdtOpts).addTo(map);
   L.tileLayer(`https://t{s}.tianditu.gov.cn/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=${tdtKey}`, tdtOpts).addTo(map);
-} else {
-  // className basemap-muted: CSS 滤镜降低底图饱和度，橙色道路退为浅灰，突出地点图标
+} else if (BASEMAP === "amap") {
   L.tileLayer("https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}", {
     subdomains: "1234",
     maxZoom: 18,
     attribution: '&copy; 高德地图',
     className: "basemap-muted",
   }).addTo(map);
+} else {
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
+    subdomains: "abcd",
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+  }).addTo(map);
+  addPlaceLabels();
+}
+
+// 自研中文地名标注层（随缩放显隐，置于标记图层之下）
+function addPlaceLabels() {
+  if (typeof PLACE_LABELS === "undefined") return;
+  map.createPane("placeLabels");
+  map.getPane("placeLabels").style.zIndex = 450;
+  map.getPane("placeLabels").style.pointerEvents = "none";
+  const labelMarkers = PLACE_LABELS.map((p) => {
+    const m = L.marker([p.lat, p.lng], {
+      pane: "placeLabels",
+      interactive: false,
+      keyboard: false,
+      icon: L.divIcon({
+        className: "",
+        html: `<div class="place-label ${p.cls || ""}">${p.n}</div>`,
+        iconSize: [0, 0],
+      }),
+    }).addTo(map);
+    m._lblMin = p.min ?? 0;
+    m._lblMax = p.max ?? 22;
+    return m;
+  });
+  function updateLabels() {
+    const z = map.getZoom();
+    labelMarkers.forEach((m) => {
+      const el = m.getElement();
+      if (el) el.style.display = z >= m._lblMin && z <= m._lblMax ? "" : "none";
+    });
+  }
+  map.on("zoomend", updateLabels);
+  updateLabels();
 }
 
 // 每个地点的显示坐标（随底图坐标系而定）
