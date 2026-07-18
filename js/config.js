@@ -27,7 +27,7 @@ const MAP_CONFIG = {
    * 3. 把这个名字填到下面 goatcounterCode 里就行
    * 之后在 https://<你的名字>.goatcounter.com 看数据，Visits 就是每日独立访客。
    */
-  goatcounterCode: "",
+  goatcounterCode: "numericalpipie",
 
   /**
    * —— 百度统计（备选，内地无需外网即可看后台）——
