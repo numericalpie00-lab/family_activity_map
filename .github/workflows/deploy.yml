@@ -1,9 +1,8 @@
 name: Deploy to GitHub Pages
 
-# Pages 以分支模式服务 gh-pages 分支；本工作流在 main 更新时自动同步过去。
+# 站点已下线：自动同步已停用，仅保留手动触发（workflow_dispatch）。
+# 需要重新上线时：改回 push 触发并手动运行本工作流，即可重建 gh-pages 分支。
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
