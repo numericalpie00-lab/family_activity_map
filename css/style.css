@@ -89,6 +89,14 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 13px;
 }
 .topbar-btn:hover { background: rgba(255, 255, 255, 0.25); }
+#btn-locale {
+  font-weight: 700;
+  min-width: 40px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #3a2a00;
+}
+#btn-locale:hover { filter: brightness(1.08); background: var(--accent); }
 
 /* ---------- 布局 ---------- */
 .layout {

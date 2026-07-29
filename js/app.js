@@ -1,30 +1,32 @@
-/* ============ 湾趣地图 · 应用逻辑 ============ */
+/* ============ 湾趣地图 · 应用逻辑（中英双语） ============ */
 
 const CATEGORIES = {
-  playground: { label: "游乐场",     emoji: "🎡", color: "#e07b39" },
-  indoorplay: { label: "室内乐园",   emoji: "🏰", color: "#b8578f" },
-  park:       { label: "公园绿地",   emoji: "🌳", color: "#4c9a52" },
-  library:    { label: "图书馆",     emoji: "📚", color: "#3a6ea5" },
-  museum:     { label: "博物馆·科普", emoji: "🏛", color: "#8e6bbf" },
-  zoo:        { label: "动物·海洋",  emoji: "🦁", color: "#2a9d8f" },
-  beach:      { label: "海滩",       emoji: "🏖", color: "#e5b93c" },
-  waterplay:  { label: "玩水",       emoji: "💦", color: "#2f8fd6" },
-  hiking:     { label: "徒步·自然",  emoji: "⛰", color: "#7a8450" },
-  camping:    { label: "露营",       emoji: "⛺", color: "#a9714b" },
-  farm:       { label: "采摘农场",   emoji: "🍓", color: "#d1495b" },
-  themepark:  { label: "主题乐园",   emoji: "🎢", color: "#c93a86" },
-  mall:       { label: "商场亲子",   emoji: "🛍", color: "#4b4bb5" },
+  playground: { emoji: "🎡", color: "#e07b39" },
+  indoorplay: { emoji: "🏰", color: "#b8578f" },
+  park:       { emoji: "🌳", color: "#4c9a52" },
+  library:    { emoji: "📚", color: "#3a6ea5" },
+  museum:     { emoji: "🏛", color: "#8e6bbf" },
+  zoo:        { emoji: "🦁", color: "#2a9d8f" },
+  beach:      { emoji: "🏖", color: "#e5b93c" },
+  waterplay:  { emoji: "💦", color: "#2f8fd6" },
+  hiking:     { emoji: "⛰", color: "#7a8450" },
+  camping:    { emoji: "⛺", color: "#a9714b" },
+  farm:       { emoji: "🍓", color: "#d1495b" },
+  themepark:  { emoji: "🎢", color: "#c93a86" },
+  mall:       { emoji: "🛍", color: "#4b4bb5" },
 };
 
 const CITIES = ["深圳", "广州", "香港", "澳门", "珠海", "佛山", "东莞", "中山", "惠州", "江门", "肇庆"];
 
 // ---------- 状态 ----------
 const state = {
-  cats: new Set(),     // 空 = 全部
-  cities: new Set(),   // 空 = 全部
-  conds: new Set(),    // free / indoor / outdoor / toddler
+  cats: new Set(),
+  cities: new Set(),
+  conds: new Set(),
   keyword: "",
   userPos: null,
+  selected: null,        // 当前详情卡片对应地点
+  listTitleKey: "all",   // all / near
 };
 
 // ---------- 坐标转换 (WGS-84 -> GCJ-02，港澳无偏移不转换) ----------
@@ -66,14 +68,11 @@ function toGcj(a) {
 const map = L.map("map", { zoomControl: false }).setView([22.75, 113.7], 9);
 L.control.zoom({ position: "topright" }).addTo(map);
 
-// 底图三种模式：
-//  clean（默认）  CARTO Positron 无标注极简底图（WGS-84），道路极淡，配自研中文地名标注层
-//  amap           高德中文瓦片 + 降饱和滤镜（GCJ-02，内地加载快但道路较明显）
-//  tianditu       配置了 tiandituKey 时自动启用（WGS-84，官方中文）
-// DISPLAY_GCJ 表示底图为 GCJ-02 坐标系，标记点显示坐标需同步转换以免偏移。
 const tdtKey = (typeof MAP_CONFIG !== "undefined" && MAP_CONFIG.tiandituKey) || "";
 const BASEMAP = tdtKey ? "tianditu" : ((typeof MAP_CONFIG !== "undefined" && MAP_CONFIG.basemap) || "clean");
 const DISPLAY_GCJ = BASEMAP === "amap";
+
+let labelMarkers = []; // 中文地名标注（声明须早于底图块中的 addPlaceLabels 调用）
 
 if (BASEMAP === "tianditu") {
   const tdtOpts = {
@@ -99,13 +98,13 @@ if (BASEMAP === "tianditu") {
   addPlaceLabels();
 }
 
-// 自研中文地名标注层（随缩放显隐，置于标记图层之下）
+// 自研中文地名标注层（仅中文模式显示；英文模式隐藏，避免与英文界面混杂）
 function addPlaceLabels() {
   if (typeof PLACE_LABELS === "undefined") return;
   map.createPane("placeLabels");
   map.getPane("placeLabels").style.zIndex = 450;
   map.getPane("placeLabels").style.pointerEvents = "none";
-  const labelMarkers = PLACE_LABELS.map((p) => {
+  labelMarkers = PLACE_LABELS.map((p) => {
     const m = L.marker([p.lat, p.lng], {
       pane: "placeLabels",
       interactive: false,
@@ -120,15 +119,16 @@ function addPlaceLabels() {
     m._lblMax = p.max ?? 22;
     return m;
   });
-  function updateLabels() {
-    const z = map.getZoom();
-    labelMarkers.forEach((m) => {
-      const el = m.getElement();
-      if (el) el.style.display = z >= m._lblMin && z <= m._lblMax ? "" : "none";
-    });
-  }
   map.on("zoomend", updateLabels);
   updateLabels();
+}
+function updateLabels() {
+  const z = map.getZoom();
+  const showLabels = getLang() === "zh"; // 中文标注仅在中文界面显示
+  labelMarkers.forEach((m) => {
+    const el = m.getElement();
+    if (el) el.style.display = showLabels && z >= m._lblMin && z <= m._lblMax ? "" : "none";
+  });
 }
 
 // 每个地点的显示坐标（随底图坐标系而定）
@@ -175,8 +175,15 @@ function matchesFilter(a) {
   return true;
 }
 
+// 搜索同时匹配中英文（名称/简介/城市/标签/分类），无论界面语言
 function keywordMatch(a, k) {
-  const hay = `${a.n} ${a.city} ${a.d} ${(a.tags || []).join(" ")} ${CATEGORIES[a.c].label}`.toLowerCase();
+  const en = (typeof ACTIVITIES_EN !== "undefined" && ACTIVITIES_EN[a.city + "|" + a.n]) || {};
+  const enTags = (a.tags || []).map((tg) => (typeof TAG_I18N !== "undefined" && TAG_I18N[tg]) || "").join(" ");
+  const hay = [
+    a.n, a.d, a.city, (a.tags || []).join(" "),
+    CAT_LABEL_I18N[a.c].zh, CAT_LABEL_I18N[a.c].en,
+    en.n || "", en.d || "", CITY_I18N[a.city] || "", enTags,
+  ].join(" ").toLowerCase();
   return hay.includes(k.toLowerCase());
 }
 
@@ -191,8 +198,7 @@ function renderMarkers() {
     markerById[a._id] = m;
     cluster.addLayer(m);
   });
-  document.getElementById("result-count").textContent =
-    `共找到 ${shown.length} 个地点` + (shown.length ? "，点击地图图标查看详情" : "，试试放宽筛选条件");
+  document.getElementById("result-count").textContent = t("resultCount", shown.length);
   updateCategoryCounts();
   if (!document.getElementById("list-panel").classList.contains("hidden")) renderList();
   return shown;
@@ -201,38 +207,38 @@ function renderMarkers() {
 // ---------- 详情卡片 ----------
 const detailCard = document.getElementById("detail-card");
 function showDetail(a) {
+  state.selected = a;
   const conf = CATEGORIES[a.c];
-  const q = encodeURIComponent(`${a.city} ${a.n}`);
-  const name = encodeURIComponent(a.n);
+  const name = encodeURIComponent(a.n);           // 高德/百度用中文名更准
   const addr = encodeURIComponent(`${a.city} · ${a.addr}`);
-  // 高德标点接口要求 GCJ-02 坐标；百度接口用 coord_type=wgs84 声明原始坐标由其自行转换
+  const googleQ = encodeURIComponent(`${placeName(a)} ${cityLabel(a.city)}`);
   const [glat, glng] = toGcj(a);
   const amapUrl = `https://uri.amap.com/marker?position=${glng.toFixed(6)},${glat.toFixed(6)}&name=${name}&src=wanqumap&coordinate=gaode&callnative=0`;
   const baiduUrl = `https://api.map.baidu.com/marker?location=${a.lat},${a.lng}&title=${name}&content=${addr}&output=html&coord_type=wgs84&src=web.wanqumap.gba`;
-  const tags = (a.tags || []).map((t) => `<span class="dc-tag">${t}</span>`).join("");
-  const seasonTag = a.season ? `<span class="dc-tag warn">🗓 ${a.season}</span>` : "";
+  const tags = placeTags(a).map((tg) => `<span class="dc-tag">${tg}</span>`).join("");
+  const seasonTag = a.season ? `<span class="dc-tag warn">🗓 ${seasonLabel(a.season)}</span>` : "";
+  const ioLabel = a.io === "indoor" ? t("ioIndoor") : a.io === "outdoor" ? t("ioOutdoor") : t("ioBoth");
   detailCard.innerHTML = `
     <button class="close-btn dc-close" onclick="hideDetail()">×</button>
-    <span class="dc-cat" style="background:${conf.color}">${conf.emoji} ${conf.label}</span>
-    <h2>${a.n}</h2>
-    <p class="dc-desc">${a.d}</p>
+    <span class="dc-cat" style="background:${conf.color}">${conf.emoji} ${catLabel(a.c)}</span>
+    <h2>${placeName(a)}</h2>
+    <p class="dc-desc">${placeDesc(a)}</p>
     <div class="dc-tags">
-      <span class="dc-tag">👶 ${a.age}岁</span>
-      <span class="dc-tag">${a.free ? "🆓 免费" : "💰 收费"}</span>
-      <span class="dc-tag">${a.io === "indoor" ? "🏠 室内" : a.io === "outdoor" ? "🌤 户外" : "🏠+🌤 室内外"}</span>
+      <span class="dc-tag">👶 ${a.age}${t("ageSuffix")}</span>
+      <span class="dc-tag">${a.free ? t("free") : t("paid")}</span>
+      <span class="dc-tag">${ioLabel}</span>
       ${seasonTag}${tags}
     </div>
-    <p class="dc-meta">📍 ${a.city} · ${a.addr}</p>
+    <p class="dc-meta">📍 ${cityLabel(a.city)} · ${a.addr}</p>
     <div class="dc-nav">
-      <a href="${amapUrl}" target="_blank" rel="noopener">高德地图</a>
-      <a href="${baiduUrl}" target="_blank" rel="noopener">百度地图</a>
-      <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Google</a>
+      <a href="${amapUrl}" target="_blank" rel="noopener">${t("navAmap")}</a>
+      <a href="${baiduUrl}" target="_blank" rel="noopener">${t("navBaidu")}</a>
+      <a href="https://www.google.com/maps/search/?api=1&query=${googleQ}" target="_blank" rel="noopener">${t("navGoogle")}</a>
     </div>`;
   detailCard.classList.remove("hidden");
   positionDetail();
 }
-function hideDetail() { detailCard.classList.add("hidden"); }
-// 桌面端列表打开时，详情卡片左移避开列表面板
+function hideDetail() { detailCard.classList.add("hidden"); state.selected = null; }
 function positionDetail() {
   const listOpen = !document.getElementById("list-panel").classList.contains("hidden");
   detailCard.classList.toggle("shifted", listOpen && window.innerWidth > 768);
@@ -255,12 +261,13 @@ function updateCategoryCounts() {
 
 function buildFilterUI() {
   const catBox = document.getElementById("category-chips");
+  catBox.innerHTML = "";
   Object.entries(CATEGORIES).forEach(([id, conf]) => {
     const b = document.createElement("button");
-    b.className = "chip cat-chip";
+    b.className = "chip cat-chip" + (state.cats.has(id) ? " active" : "");
     b.dataset.cat = id;
     b.style.borderLeftColor = conf.color;
-    b.innerHTML = `${conf.emoji} ${conf.label}<span class="cat-count"></span>`;
+    b.innerHTML = `${conf.emoji} ${catLabel(id)}<span class="cat-count"></span>`;
     b.onclick = () => {
       state.cats.has(id) ? state.cats.delete(id) : state.cats.add(id);
       b.classList.toggle("active");
@@ -270,10 +277,11 @@ function buildFilterUI() {
   });
 
   const cityBox = document.getElementById("city-chips");
+  cityBox.innerHTML = "";
   CITIES.forEach((city) => {
     const b = document.createElement("button");
-    b.className = "chip";
-    b.textContent = city;
+    b.className = "chip" + (state.cities.has(city) ? " active" : "");
+    b.textContent = cityLabel(city);
     b.onclick = () => {
       state.cities.has(city) ? state.cities.delete(city) : state.cities.add(city);
       b.classList.toggle("active");
@@ -284,9 +292,9 @@ function buildFilterUI() {
   });
 
   document.querySelectorAll(".cond-chip").forEach((b) => {
+    b.classList.toggle("active", state.conds.has(b.dataset.cond));
     b.onclick = () => {
       const c = b.dataset.cond;
-      // 室内 / 户外互斥
       if (c === "indoor" && state.conds.has("outdoor")) {
         state.conds.delete("outdoor");
         document.querySelector('[data-cond="outdoor"]').classList.remove("active");
@@ -322,8 +330,8 @@ function zoomToFiltered() {
 
 // ---------- 图例 ----------
 function buildLegend() {
-  document.getElementById("legend").innerHTML = Object.values(CATEGORIES)
-    .map((c) => `<span class="lg-item"><span class="lg-dot" style="background:${c.color}"></span>${c.label}</span>`)
+  document.getElementById("legend").innerHTML = Object.entries(CATEGORIES)
+    .map(([id, c]) => `<span class="lg-item"><span class="lg-dot" style="background:${c.color}"></span>${catLabel(id)}</span>`)
     .join("");
 }
 
@@ -336,11 +344,10 @@ searchInput.addEventListener("input", () => {
   state.keyword = k;
   renderMarkers();
   if (!k) { searchResults.classList.add("hidden"); return; }
-  // 搜索下拉为全局搜索，不受侧栏筛选限制
   const hits = ACTIVITIES.filter((a) => keywordMatch(a, k)).slice(0, 8);
   searchResults.innerHTML = hits.length
-    ? hits.map((a) => `<div class="sr-item" data-id="${a._id}">${CATEGORIES[a.c].emoji} ${a.n}<span class="sr-city">${a.city}</span></div>`).join("")
-    : `<div class="sr-empty">没有找到「${k}」，试试别的关键词？</div>`;
+    ? hits.map((a) => `<div class="sr-item" data-id="${a._id}">${CATEGORIES[a.c].emoji} ${placeName(a)}<span class="sr-city">${cityLabel(a.city)}</span></div>`).join("")
+    : `<div class="sr-empty">${t("searchEmpty", k)}</div>`;
   searchResults.classList.remove("hidden");
   searchResults.querySelectorAll(".sr-item").forEach((el) => {
     el.onclick = () => {
@@ -365,11 +372,10 @@ function haversine(lat1, lng1, lat2, lng2) {
 
 let userMarker = null;
 document.getElementById("btn-locate").onclick = () => {
-  if (!navigator.geolocation) { alert("当前浏览器不支持定位"); return; }
+  if (!navigator.geolocation) { alert(t("geoUnsupported")); return; }
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      state.userPos = [pos.coords.latitude, pos.coords.longitude]; // WGS-84，用于算距离
-      // 底图为 GCJ-02 时显示位置需转换（港澳范围内无偏移）
+      state.userPos = [pos.coords.latitude, pos.coords.longitude];
       const inHkMo =
         pos.coords.longitude > 113.5 && pos.coords.longitude < 114.45 &&
         pos.coords.latitude > 22.06 && pos.coords.latitude < 22.57 &&
@@ -380,19 +386,21 @@ document.getElementById("btn-locate").onclick = () => {
       if (userMarker) map.removeLayer(userMarker);
       userMarker = L.circleMarker(dispPos, {
         radius: 9, color: "#fff", weight: 3, fillColor: "#2563eb", fillOpacity: 1,
-      }).addTo(map).bindTooltip("我的位置");
+      }).addTo(map).bindTooltip(t("myLocation"));
       map.setView(dispPos, 12);
-      openList("📍 离我最近");
+      openList("near");
     },
-    () => alert("定位失败，请允许浏览器获取位置权限。\n提示：部分浏览器要求 HTTPS 才能定位。"),
+    () => alert(t("geoFail")),
     { enableHighAccuracy: true, timeout: 8000 }
   );
 };
 
 // ---------- 列表视图 ----------
 const listPanel = document.getElementById("list-panel");
-function openList(title) {
-  document.getElementById("list-title").textContent = title || "全部地点";
+function openList(titleKey) {
+  state.listTitleKey = titleKey || "all";
+  document.getElementById("list-title").textContent =
+    state.listTitleKey === "near" ? t("listTitleNear") : t("listTitleAll");
   listPanel.classList.remove("hidden");
   renderList();
 }
@@ -408,13 +416,13 @@ function renderList() {
       <div class="list-item" data-id="${a._id}">
         <div class="li-top">
           <span>${CATEGORIES[a.c].emoji}</span>
-          <span class="li-name">${a.n}</span>
-          <span class="li-city">${a.city}</span>
+          <span class="li-name">${placeName(a)}</span>
+          <span class="li-city">${cityLabel(a.city)}</span>
         </div>
-        <div class="li-desc">${a.d}</div>
-        ${a._dist != null ? `<div class="li-dist">距离约 ${a._dist < 1 ? Math.round(a._dist * 1000) + " 米" : a._dist.toFixed(1) + " 公里"}</div>` : ""}
+        <div class="li-desc">${placeDesc(a)}</div>
+        ${a._dist != null ? `<div class="li-dist">${a._dist < 1 ? t("distMeters", Math.round(a._dist * 1000)) : t("distKm", a._dist.toFixed(1))}</div>` : ""}
       </div>`).join("")
-    : `<div class="sr-empty" style="padding:20px">没有符合条件的地点</div>`;
+    : `<div class="sr-empty" style="padding:20px">${t("noResult")}</div>`;
   document.querySelectorAll(".list-item").forEach((el) => {
     el.onclick = () => {
       const a = ACTIVITIES[+el.dataset.id];
@@ -425,7 +433,7 @@ function renderList() {
   });
 }
 document.getElementById("btn-list").onclick = () => {
-  listPanel.classList.contains("hidden") ? openList() : listPanel.classList.add("hidden");
+  listPanel.classList.contains("hidden") ? openList("all") : listPanel.classList.add("hidden");
   positionDetail();
 };
 document.getElementById("btn-list-close").onclick = () => {
@@ -446,7 +454,63 @@ document.getElementById("btn-about").onclick = () => aboutModal.classList.remove
 document.getElementById("btn-about-close").onclick = () => aboutModal.classList.add("hidden");
 aboutModal.addEventListener("click", (e) => { if (e.target === aboutModal) aboutModal.classList.add("hidden"); });
 
+// ---------- 语言：静态文案 + 切换 ----------
+function applyStaticText() {
+  const L = getLang();
+  document.documentElement.lang = L === "zh" ? "zh-CN" : "en";
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set("brand-sub", t("brandSub"));
+  set("btn-list", t("listBtn"));
+  set("filter-title", t("filterTitle"));
+  set("btn-reset", t("clearAll"));
+  set("cat-header", t("catHeader"));
+  set("city-header", t("cityHeader"));
+  set("cond-header", t("condHeader"));
+  set("foot-note", t("footNote"));
+  set("btn-locale", t("localeBtn"));
+  set("btn-locate", t("locateBtn"));
+  set("btn-filter-toggle", t("filterFab"));
+  document.querySelector('[data-cond="free"]').textContent = t("condFree");
+  document.querySelector('[data-cond="indoor"]').textContent = t("condIndoor");
+  document.querySelector('[data-cond="outdoor"]').textContent = t("condOutdoor");
+  document.querySelector('[data-cond="toddler"]').textContent = t("condToddler");
+  searchInput.placeholder = t("searchPlaceholder");
+  // 纠错链接
+  const fix = document.getElementById("foot-fix");
+  if (fix) fix.innerHTML = `${t("footFix1")}<a href="https://github.com/numericalpie00-lab/family_activity_map/issues" target="_blank" rel="noopener">${t("footFix2")}</a>`;
+  // 关于弹窗
+  const ab = document.getElementById("about-body");
+  if (ab) {
+    ab.innerHTML = `
+      <h2>${t("aboutTitle")}</h2>
+      <p>${t("aboutP1a")}<strong>${t("aboutP1b")}</strong>${t("aboutP1c")}</p>
+      <p>${t("aboutP2")}</p>
+      <ul>
+        <li>${t("aboutLi1")}</li>
+        <li>${t("aboutLi2")}</li>
+        <li>${t("aboutLi3")}</li>
+      </ul>
+      <p class="muted">${t("aboutMuted")}</p>`;
+  }
+}
+
+function applyLang(newLang) {
+  setLang(newLang);
+  applyStaticText();
+  buildFilterUI();
+  buildLegend();
+  renderMarkers();
+  updateLabels();
+  if (state.selected) showDetail(state.selected);
+  if (!listPanel.classList.contains("hidden")) openList(state.listTitleKey);
+}
+
+document.getElementById("btn-locale").onclick = () => {
+  applyLang(getLang() === "zh" ? "en" : "zh");
+};
+
 // ---------- 启动 ----------
+applyStaticText();     // 依据浏览器语言自动应用（i18n.detectLang）
 buildFilterUI();
 buildLegend();
 renderMarkers();
