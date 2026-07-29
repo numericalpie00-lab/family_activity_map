@@ -1,24 +1,34 @@
 name: Deploy to GitHub Pages
 
-# Pages 以分支模式服务 gh-pages 分支；本工作流在 main 更新时自动同步过去。
+# 官方 Actions 发布流程：直接把仓库根目录作为静态站点部署到 Pages，
+# 不再强制推送 gh-pages 分支（避免重写历史导致 Pages 发布状态丢失）。
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  sync-gh-pages:
+  deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
         with:
-          fetch-depth: 0
-      - name: Push main to gh-pages
-        run: git push --force origin HEAD:gh-pages
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
